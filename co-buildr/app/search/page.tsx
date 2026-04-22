@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
@@ -13,6 +14,7 @@ import {
   Users,
   WalletCards,
 } from 'lucide-react';
+import PricingSection from '@/components/PricingSection';
 
 type SearchMode = 'posts' | 'people';
 
@@ -51,32 +53,44 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gray-50/50">
+    <div className="relative min-h-screen overflow-hidden bg-black">
       <div
         className="pointer-events-none absolute inset-0"
         style={{
           backgroundImage: `
-            linear-gradient(to right, rgba(0,0,0,0.03) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(0,0,0,0.03) 1px, transparent 1px)
+            linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)
           `,
           backgroundSize: '40px 40px',
         }}
       />
 
       <header className="relative z-10 px-4 pt-4">
-        <div className="mx-auto flex max-w-5xl items-center justify-between rounded-full border border-gray-100 bg-white px-6 py-3 shadow-lg shadow-gray-200/50">
+        <div className="mx-auto flex max-w-5xl items-center justify-between rounded-full border border-white/10 bg-zinc-900/90 px-6 py-3 shadow-lg shadow-black/40">
           <div className="flex items-center gap-1">
             <span className="text-xl font-bold text-amber-500">co-</span>
-            <span className="text-xl font-bold text-gray-900">buildr</span>
+            <span className="text-xl font-bold text-white">buildr</span>
           </div>
-          <button
-            type="submit"
-            form="search-form"
-            disabled={loading || !query.trim()}
-            className="rounded-full bg-amber-500 px-5 py-2.5 font-medium text-white transition-all hover:bg-amber-600 hover:shadow-lg hover:shadow-amber-500/25 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading ? 'Searching...' : 'Start Scraping'}
-          </button>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/pricing"
+              className="rounded-full border border-white/20 bg-transparent px-5 py-2.5 font-medium text-white transition-all hover:border-white/40 hover:bg-white/5"
+            >
+              Pricing
+            </Link>
+            <Link
+              href="/login"
+              className="rounded-full bg-amber-500 px-5 py-2.5 font-medium text-white transition-all hover:bg-amber-600 hover:shadow-lg hover:shadow-amber-500/25"
+            >
+              Login
+            </Link>
+            <Link
+              href="/signup"
+              className="rounded-full border border-white/20 bg-transparent px-5 py-2.5 font-medium text-white transition-all hover:border-white/40 hover:bg-white/5"
+            >
+              Signup
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -109,23 +123,23 @@ export default function SearchPage() {
                 </svg>
               ))}
             </div>
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-gray-300">
               <span className="font-semibold text-amber-600">12,500+</span> Searches Made
             </span>
           </div>
         </div>
 
-        <h1 className="mb-2 text-center text-4xl font-bold tracking-tight text-gray-900 md:text-5xl lg:text-6xl">
+        <h1 className="mb-2 text-center text-4xl font-bold tracking-tight text-white md:text-5xl lg:text-6xl">
           What are you looking for?
         </h1>
-        <p className="mb-10 max-w-xl text-center text-lg text-gray-500 md:text-xl">
+        <p className="mb-10 max-w-xl text-center text-lg text-gray-300 md:text-xl">
           Search Reddit for posts or discover people in any community,
           <span className="italic text-amber-600"> instantly.</span>
         </p>
 
         <form id="search-form" onSubmit={handleSearch} className="mb-6 w-full max-w-2xl">
-          <div className="flex items-center rounded-2xl border border-gray-100 bg-white px-5 py-3 shadow-xl shadow-gray-200/80 transition-shadow hover:shadow-2xl hover:shadow-gray-200">
-            <div className="mr-3 flex items-center gap-3 text-gray-400">
+          <div className="flex items-center rounded-2xl border border-white/10 bg-zinc-900 px-5 py-3 shadow-xl shadow-black/50 transition-shadow hover:shadow-2xl hover:shadow-black/60">
+            <div className="mr-3 flex items-center gap-3 text-gray-500">
               <Link2 className="h-5 w-5" />
               <Search className="h-5 w-5" />
             </div>
@@ -138,16 +152,27 @@ export default function SearchPage() {
                   ? 'Find people to connect with on Reddit...'
                   : 'Search Reddit posts...'
               }
-              className="flex-1 bg-transparent text-lg text-gray-700 placeholder-gray-400 outline-none"
+              className="flex-1 bg-transparent text-lg text-gray-100 placeholder-gray-500 outline-none"
               disabled={loading}
             />
             <button
               type="submit"
               disabled={loading || !query.trim()}
-              className="ml-3 flex items-center gap-2 rounded-xl bg-amber-500 px-6 py-3 font-semibold text-white transition-all hover:bg-amber-600 hover:shadow-lg hover:shadow-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+              className="ml-3 flex min-w-[130px] items-center justify-center rounded-xl bg-amber-500 px-6 py-3 font-semibold text-white transition-all hover:bg-amber-600 hover:shadow-lg hover:shadow-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? 'Searching...' : 'Search'}
-              <ArrowRight className="h-4 w-4" />
+              {loading ? (
+                <div className="relative h-8 w-8 animate-spin [animation-duration:2s]">
+                  <div className="absolute left-0 top-0 h-3 w-3 rounded-sm bg-primary" />
+                  <div className="absolute right-0 top-0 h-3 w-3 rounded-sm bg-primary/70" />
+                  <div className="absolute bottom-0 right-0 h-3 w-3 rounded-sm bg-primary/50" />
+                  <div className="absolute bottom-0 left-0 h-3 w-3 rounded-sm bg-primary/30" />
+                </div>
+              ) : (
+                <>
+                  Search
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
             </button>
           </div>
         </form>
@@ -159,7 +184,7 @@ export default function SearchPage() {
             className={`flex items-center gap-2 rounded-full px-6 py-2.5 shadow-sm transition-all ${
               mode === 'people'
                 ? 'bg-amber-500 text-white shadow-md shadow-amber-500/25 hover:bg-amber-600 hover:shadow-lg hover:shadow-amber-500/30'
-                : 'border border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                : 'border border-white/20 bg-zinc-900 text-gray-200 hover:border-white/40 hover:bg-zinc-800'
             }`}
           >
             <Users className="h-5 w-5" />
@@ -171,7 +196,7 @@ export default function SearchPage() {
             className={`flex items-center gap-2 rounded-full px-6 py-2.5 shadow-sm transition-all ${
               mode === 'posts'
                 ? 'bg-amber-500 text-white shadow-md shadow-amber-500/25 hover:bg-amber-600 hover:shadow-lg hover:shadow-amber-500/30'
-                : 'border border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                : 'border border-white/20 bg-zinc-900 text-gray-200 hover:border-white/40 hover:bg-zinc-800'
             }`}
           >
             <FileText className="h-5 w-5" />
@@ -186,22 +211,26 @@ export default function SearchPage() {
               return (
                 <article
                   key={card.title}
-                  className="group rounded-2xl border border-gray-100 bg-white p-6 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-gray-200/50"
+                  className="group rounded-2xl border border-white/10 bg-zinc-900 p-6 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/50"
                 >
-                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-amber-100 to-amber-50 shadow-sm transition-shadow duration-300 group-hover:shadow-md">
+                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500/25 to-amber-400/10 shadow-sm transition-shadow duration-300 group-hover:shadow-md">
                     <Icon className="h-5 w-5 text-amber-500" />
                   </div>
-                  <h3 className="mb-2 text-lg font-semibold text-gray-900 transition-colors group-hover:text-amber-600">
+                  <h3 className="mb-2 text-lg font-semibold text-gray-100 transition-colors group-hover:text-amber-500">
                     {card.title}
                   </h3>
-                  <p className="text-sm leading-relaxed text-gray-600">{card.description}</p>
+                  <p className="text-sm leading-relaxed text-gray-300">{card.description}</p>
                 </article>
               );
             })}
           </div>
         </section>
 
-        <div className="flex items-center gap-6 text-sm text-gray-400">
+        <section className="w-full max-w-7xl">
+          <PricingSection />
+        </section>
+
+        <div className="flex items-center gap-6 text-sm text-gray-300">
           <div className="flex items-center gap-2">
             <WalletCards className="h-4 w-4" />
             <span>No card required</span>

@@ -13,6 +13,7 @@ import {
   UserRound,
   Users,
 } from 'lucide-react';
+import { getSupabaseClient } from '@/lib/supabase-client';
 
 type SearchMode = 'posts' | 'people';
 
@@ -91,16 +92,39 @@ export default function ResultsClient() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<'cache' | 'fresh' | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
   const peopleResults = useMemo(() => buildPeopleResults(results), [results]);
 
   useEffect(() => {
-    if (!query) {
-      router.push('/');
-      return;
-    }
-
     const fetchResults = async () => {
+      if (!query) {
+        router.push('/');
+        return;
+      }
+
+      try {
+        const supabase = getSupabaseClient();
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          throw sessionError;
+        }
+
+        if (!session?.user) {
+          router.push(`/login?next=${encodeURIComponent(`/results?q=${query}&mode=${mode}`)}`);
+          return;
+        }
+      } catch {
+        router.push(`/login?next=${encodeURIComponent(`/results?q=${query}&mode=${mode}`)}`);
+        return;
+      } finally {
+        setAuthChecked(true);
+      }
+
       setLoading(true);
       setError(null);
       setSource(null);
@@ -138,6 +162,15 @@ export default function ResultsClient() {
   }, [query, mode, router]);
 
   if (!query) return null;
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-black">
+        <div className="flex min-h-screen items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+        </div>
+      </div>
+    );
+  }
 
   const switchMode = (target: SearchMode) => {
     router.push(`/results?q=${encodeURIComponent(query)}&mode=${target}`);

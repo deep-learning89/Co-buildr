@@ -1,20 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { assertApifyConfig, REDDIT_SCRAPER_ACTOR_ID } from '@/lib/apify-config';
+import {
+  assertApifyConfig,
+  buildTrudaxRedditScraperConfig,
+  TRUDAX_REDDIT_SCRAPER_ACTOR_ID,
+} from '@/apify/configs';
 import { assertSupabaseServerConfig, getSupabaseServer } from '@/lib/supabase-server';
 import { 
-  runApifyScraper, 
-  pollApifyRun, 
+  runTrudaxRedditScraper,
+  mapTrudaxItemToInternalResult,
   normalizeQuery,
   getCachedResults,
   saveResultsToSupabase,
-  updateScrapeStatus,
-  ScrapeInput
-} from '@/lib/apify-helpers';
+  updateScrapeStatus
+} from '@/apify/helpers';
+
+export const maxDuration = 60;
+
+type ScrapeInput = {
+  query: string;
+  mode?: 'posts' | 'people';
+  subreddit?: string;
+};
 
 // Main API route
 export async function POST(request: NextRequest) {
   let body: ScrapeInput | null = null;
   let scrapeId: string | null = null;
+  let supabase: ReturnType<typeof getSupabaseServer> | null = null;
   
   try {
     assertApifyConfig();
@@ -29,12 +41,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    supabase = getSupabaseServer();
+
     const normalizedQuery = normalizeQuery(body.query);
     const mode = body.mode === 'people' ? 'people' : 'posts';
     const cacheKey = `${mode}:${normalizedQuery}`;
     
     // Check for cached results first
-    const cachedResults = await getCachedResults(cacheKey);
+    const cachedResults = await getCachedResults(cacheKey, supabase);
     if (cachedResults) {
       return NextResponse.json({
         success: true,
@@ -48,13 +62,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Create scrape record with proper lifecycle
-    const supabase = getSupabaseServer();
     const { data: scrapeRecord, error: insertError } = await supabase
       .from('reddit_scrapes')
       .insert({
         search_query: cacheKey,
         original_query: body.query,
-        actor_id: REDDIT_SCRAPER_ACTOR_ID,
+        actor_id: TRUDAX_REDDIT_SCRAPER_ACTOR_ID,
         status: 'running',
         results: null,
       })
@@ -75,31 +88,35 @@ export async function POST(request: NextRequest) {
     scrapeId = scrapeRecord.id;
 
     // Run scraper
-    const runId = await runApifyScraper({
-      query: normalizedQuery,
-      maxPosts: body.maxPosts || 30,
-      sort: body.sort || 'hot',
-      mode,
+    const actorInput = buildTrudaxRedditScraperConfig({
+      searches: [body.query],
+      searchCommunityName: mode !== 'people' ? body.subreddit : undefined,
+      searchPosts: true,
+      searchComments: false,
+      searchCommunities: mode === 'people',
+      searchUsers: mode === 'people',
+      maxItems: mode === 'people' ? 60 : 50,
+      maxPostCount: mode === 'people' ? 60 : 50,
+      maxComments: 50,
+      sort: 'new',
+      time: 'all',
     });
-    
-    // Update status with run ID
-    if (scrapeId) {
-      await updateScrapeStatus(scrapeId, 'running', { run_id: runId });
-    }
-    
-    // Poll for results
-    const results = await pollApifyRun(runId);
+
+    const rawResults = await runTrudaxRedditScraper(actorInput);
     
     // Save results and update status
     if (scrapeId) {
-      await saveResultsToSupabase(scrapeId, results);
+      await updateScrapeStatus(scrapeId, 'completed', supabase);
     }
+
+    const mappedResults = rawResults.map((item) => mapTrudaxItemToInternalResult(item));
+    await saveResultsToSupabase(mappedResults, supabase);
 
     return NextResponse.json({
       success: true,
       status: 'completed',
-      results,
-      count: results.length,
+      results: mappedResults,
+      count: mappedResults.length,
       source: 'fresh',
       mode,
       error: null
@@ -111,9 +128,9 @@ export async function POST(request: NextRequest) {
     // Update status to failed if we have a scrape ID
     if (scrapeId) {
       try {
-        await updateScrapeStatus(scrapeId, 'failed', {
-          error_message: error instanceof Error ? error.message : 'Unknown error'
-        });
+        if (supabase) {
+          await updateScrapeStatus(scrapeId, 'failed', supabase);
+        }
       } catch (statusError) {
         console.error('Failed to persist failed status:', statusError);
       }

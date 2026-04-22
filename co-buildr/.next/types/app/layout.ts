@@ -1,4 +1,4 @@
-// File: C:\Users\Moavia Computer\Documents\New project\Co-buildr-main\co-buildr\app\layout.tsx
+// File: C:\Users\Moavia Computer\Documents\mainone\Co-buildr-main\co-buildr\app\layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
