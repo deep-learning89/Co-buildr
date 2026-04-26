@@ -12,10 +12,12 @@ export const metadata: Metadata = {
     title: 'CoBuildr - Find Your People with AI',
     description: 'AI-powered people matching across Reddit, Discord, LinkedIn, X, and more.',
     type: 'website',
+    images: ['/preview.png'],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     site: '@CoBuildr',
+    images: ['/preview.png'],
   },
 };
 
