@@ -27,9 +27,11 @@ export default function LoginPage() {
       const { error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
+
       });
 
       if (authError) throw authError;
+      router.refresh();
       router.push(nextPath.startsWith('/') ? nextPath : '/search');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to sign in right now.');
