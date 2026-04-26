@@ -11,6 +11,9 @@ interface ResultCardProps {
   upvotes: number;
   link: string;
   tags?: string[];
+  aiSummary?: string;
+  intent?: string;
+  relevanceScore?: number;
 }
 
 export default function ResultCard({
@@ -20,7 +23,10 @@ export default function ResultCard({
   author,
   upvotes,
   link,
-  tags
+  tags,
+  aiSummary,
+  intent,
+  relevanceScore
 }: ResultCardProps) {
   return (
     <motion.div
@@ -30,9 +36,16 @@ export default function ResultCard({
       className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow duration-200"
     >
       <div className="flex items-start justify-between mb-3">
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-          r/{subreddit}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+            r/{subreddit}
+          </span>
+          {intent && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-muted capitalize">
+              {intent}
+            </span>
+          )}
+        </div>
         <div className="flex items-center text-gray-500 text-sm">
           <ArrowUpRight className="w-4 h-4 mr-1" />
           {upvotes}
@@ -49,6 +62,10 @@ export default function ResultCard({
         </p>
       )}
       
+      {aiSummary && (
+        <p className="text-sm text-muted-foreground mt-1">{aiSummary}</p>
+      )}
+      
       {tags && tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-4">
           {tags.map((tag, index) => (
@@ -63,9 +80,16 @@ export default function ResultCard({
       )}
       
       <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-        <span className="text-xs text-gray-500">
-          by {author}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-500">
+            by {author}
+          </span>
+          {relevanceScore && (
+            <span className="text-xs text-yellow-500">
+              {'⭐'.repeat(relevanceScore)}
+            </span>
+          )}
+        </div>
         <a
           href={link}
           target="_blank"

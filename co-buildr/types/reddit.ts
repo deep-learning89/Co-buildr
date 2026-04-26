@@ -1,3 +1,5 @@
+import type { IntentType } from '@/types';
+
 export type TrudaxRedditSort = '' | 'relevance' | 'hot' | 'top' | 'new' | 'rising' | 'comments';
 
 export type TrudaxRedditTime = 'all' | 'hour' | 'day' | 'week' | 'month' | 'year';
@@ -116,4 +118,5 @@ export interface InternalRedditResult {
   link: string;
   author: string;
   created_at: string;
+  intent?: IntentType | null;
 }

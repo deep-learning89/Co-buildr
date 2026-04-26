@@ -10,21 +10,26 @@ import {
   FileText,
   Loader2,
   Search,
+  Star,
   UserRound,
   Users,
 } from 'lucide-react';
 import { getSupabaseClient } from '@/lib/supabase-client';
+import type { IntentType } from '@/types';
 
 type SearchMode = 'posts' | 'people';
 
 interface RedditPost {
   title: string;
   text: string;
+  body?: string;
   subreddit: string;
   author: string;
   upvotes: number;
   link: string;
   tags?: string[];
+  intent?: IntentType | null;
+  aiSummary?: string | null;
 }
 
 interface PersonResult {
@@ -33,6 +38,7 @@ interface PersonResult {
   subreddits: string[];
   activityCount: number;
   profileUrl: string;
+  aiSummary?: string;
 }
 
 interface ScrapeResponse {
@@ -73,13 +79,67 @@ function buildPeopleResults(posts: RedditPost[]): PersonResult[] {
   return [...people.entries()]
     .map(([username, value]) => ({
       username,
-      estimatedKarma: value.estimatedKarma,
-      subreddits: [...value.subreddits].slice(0, 4),
-      activityCount: value.activityCount,
+      estimatedKarma: value.estimatedKarma || 0,
+      subreddits: [...(value.subreddits || [])].slice(0, 4),
+      activityCount: value.activityCount || 0,
       profileUrl: `https://www.reddit.com/user/${encodeURIComponent(username)}`,
     }))
     .sort((a, b) => b.estimatedKarma - a.estimatedKarma || b.activityCount - a.activityCount);
 }
+
+function getIntentBadge(intent?: IntentType | null): { label: string; className: string } {
+  const normalized = (intent ?? '').toLowerCase();
+
+  if (normalized === 'seeking') {
+    return {
+      label: 'Seeking',
+      className: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+    };
+  }
+
+  if (normalized === 'pain') {
+    return {
+      label: 'Pain',
+      className: 'bg-rose-100 text-rose-800 border border-rose-200',
+    };
+  }
+
+  return {
+    label: 'Discussion',
+    className: 'bg-sky-100 text-sky-800 border border-sky-200',
+  };
+}
+
+function computeAiMatchStars(query: string, post: RedditPost): number {
+  const tokens = query
+    .toLowerCase()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => (token?.length ?? 0) > 2);
+
+  if ((tokens?.length ?? 0) === 0) {
+    return 3;
+  }
+
+  const haystack = `${post.title} ${post.text} ${post.subreddit} ${post.author}`.toLowerCase();
+  let matches = 0;
+
+  for (const token of tokens) {
+    if (haystack.includes(token)) {
+      matches += 1;
+    }
+  }
+
+  const ratio = matches / (tokens?.length ?? 1);
+  let stars = Math.round(ratio * 4) + 1;
+
+  if (post.intent === 'seeking' && ratio >= 0.4) {
+    stars = Math.min(5, stars + 1);
+  }
+
+  return Math.max(1, Math.min(5, stars));
+}
+
 
 export default function ResultsClient() {
   const searchParams = useSearchParams();
@@ -88,13 +148,20 @@ export default function ResultsClient() {
   const modeParam = searchParams.get('mode');
   const mode: SearchMode = modeParam === 'people' ? 'people' : 'posts';
 
-  const [results, setResults] = useState<RedditPost[]>([]);
+  const [results, setResults] = useState<RedditPost[] | PersonResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<'cache' | 'fresh' | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
-  const peopleResults = useMemo(() => buildPeopleResults(results), [results]);
+  const peopleResults = useMemo(() => {
+    // If mode is 'people', results are already PersonResult objects from API
+    if (mode === 'people') {
+      return results as unknown as PersonResult[];
+    }
+    // Otherwise, build people results from posts
+    return buildPeopleResults(results as RedditPost[]);
+  }, [results, mode]);
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -130,11 +197,20 @@ export default function ResultsClient() {
       setSource(null);
 
       try {
+        // Get session token for authentication
+        const supabase = getSupabaseClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+
         const response = await fetch('/api/scrape', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers,
           body: JSON.stringify({
             query: query.trim(),
             mode,
@@ -176,13 +252,22 @@ export default function ResultsClient() {
     router.push(`/results?q=${encodeURIComponent(query)}&mode=${target}`);
   };
 
-  const resultsCount = mode === 'people' ? peopleResults.length : results.length;
+  const resultsCount = mode === 'people' ? (peopleResults?.length ?? 0) : (results?.length ?? 0);
 
   return (
-    <div className="min-h-screen bg-gray-50/50">
-      <div className="h-1 bg-gradient-to-r from-amber-400 to-amber-500" />
+    <div className="relative min-h-screen overflow-hidden bg-black">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            'linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
+        }}
+      />
 
-      <div className="px-4 py-4 sm:px-6">
+      <div className="relative z-10 h-1 bg-gradient-to-r from-amber-400 to-amber-500" />
+
+      <div className="relative z-10 px-4 py-4 sm:px-6">
         <header className="mx-auto flex max-w-6xl items-center justify-between rounded-full border border-gray-100 bg-white px-6 py-3 shadow-sm">
           <div className="flex items-center gap-1">
             <span className="text-xl font-bold text-amber-500">co-</span>
@@ -199,12 +284,12 @@ export default function ResultsClient() {
       </div>
 
       <main
-        className={`mx-auto px-4 py-6 ${mode === 'people' ? 'max-w-6xl' : 'max-w-4xl'}`}
+        className={`relative z-10 mx-auto px-4 py-6 ${mode === 'people' ? 'max-w-6xl' : 'max-w-4xl'}`}
       >
         <button
           type="button"
           onClick={() => router.push('/search')}
-          className="mb-6 inline-flex items-center gap-2 text-gray-600 transition-colors hover:text-gray-800"
+          className="mb-6 inline-flex items-center gap-2 text-gray-300 transition-colors hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" />
           <span>Back to Search</span>
@@ -256,43 +341,43 @@ export default function ResultsClient() {
               <span>Posts</span>
             </button>
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex items-center gap-2 text-sm text-gray-300">
             <span>
               {resultsCount} results for &quot;{query}&quot;
             </span>
             {source && (
-              <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+              <span className="rounded-full bg-white/10 px-2 py-1 text-xs font-medium text-gray-100">
                 {source === 'cache' ? 'From cache' : 'Fresh scrape'}
               </span>
             )}
           </div>
         </div>
 
-        <div className="mb-8 border-t border-gray-200" />
+        <div className="mb-8 border-t border-white/10" />
 
         {loading && (
           <div className="py-20 text-center">
             <div className="inline-flex flex-col items-center gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
-              <span className="text-lg text-gray-600">Searching Reddit for matches...</span>
+              <span className="text-lg text-gray-300">Searching Reddit for matches...</span>
             </div>
           </div>
         )}
 
         {error && (
           <div className="py-20 text-center">
-            <div className="inline-flex flex-col items-center gap-3 text-red-600">
+            <div className="inline-flex flex-col items-center gap-3 text-red-400">
               <AlertCircle className="h-8 w-8" />
               <span className="text-lg">{error}</span>
             </div>
           </div>
         )}
 
-        {!loading && !error && results.length > 0 && (
+        {!loading && !error && (results?.length ?? 0) > 0 && (
           <>
             {mode === 'posts' ? (
               <div className="flex flex-col gap-5">
-                {results.map((post, index) => (
+                {(results as RedditPost[]).slice(0, 6).map((post, index) => (
                   <article
                     key={`${post.link}-${index}`}
                     className="group rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-gray-200/50"
@@ -303,13 +388,38 @@ export default function ResultsClient() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="mb-2 text-lg font-semibold leading-tight text-gray-900 transition-colors group-hover:text-amber-600">
-                          {post.title}
+                          {post.title || 'Untitled Post'}
                         </h3>
                         <p className="mb-3 text-sm">
-                          <span className="font-medium text-amber-500">r/{post.subreddit}</span>
+                          <span className="font-medium text-amber-500">r/{post.subreddit || 'unknown'}</span>
                           <span className="mx-2 text-gray-300">|</span>
-                          <span className="text-amber-500">u/{post.author}</span>
+                          <span className="text-amber-500">u/{post.author || 'anonymous'}</span>
                         </p>
+                        <div className="mb-4 flex flex-wrap items-center gap-3">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getIntentBadge(post.intent).className}`}
+                          >
+                            Intent: {getIntentBadge(post.intent).label}
+                          </span>
+                          <div className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 border border-amber-200">
+                            <span>AI Match</span>
+                            <div className="ml-1 inline-flex items-center gap-0.5">
+                              {Array.from({ length: 5 }).map((_, starIndex) => {
+                                const stars = computeAiMatchStars(query, post);
+                                return (
+                                  <Star
+                                    key={starIndex}
+                                    className={`h-3.5 w-3.5 ${
+                                      starIndex < stars
+                                        ? 'fill-amber-500 text-amber-500'
+                                        : 'text-amber-200'
+                                    }`}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
                         {post.text ? (
                           <p className="mb-5 line-clamp-2 text-sm leading-relaxed text-gray-500">
                             {post.text}
@@ -319,24 +429,32 @@ export default function ResultsClient() {
                             No preview text available.
                           </p>
                         )}
+                        {post.aiSummary && post.aiSummary.trim() !== '' && 
+                         post.aiSummary !== 'No summary available' && (
+                          <div className="mt-2 p-2 bg-muted/50 rounded-md">
+                            <span className="text-xs font-semibold text-primary">AI Summary: </span>
+                            <span className="text-xs text-muted-foreground">{post.aiSummary}</span>
+                          </div>
+                        )}
 
                         <div className="flex items-center justify-between border-t border-gray-100 pt-4 text-sm">
                           <div className="flex items-center gap-6">
                             <span className="flex items-center gap-1.5 font-semibold text-amber-500">
                               <ArrowUp className="h-5 w-5" />
-                              {post.upvotes}
+                              {post.upvotes ?? 0}
                             </span>
-                            {post.tags && post.tags.length > 0 && (
+                            {post.tags && (post.tags?.length ?? 0) > 0 && (
                               <span className="line-clamp-1 text-xs text-gray-400">
-                                {post.tags.slice(0, 3).join(', ')}
+                                {(post.tags?.slice(0, 3) ?? []).join(', ')}
                               </span>
                             )}
                           </div>
                           <a
-                            href={post.link}
+                            href={post.link || '#'}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-amber-50 hover:text-amber-500"
+                            onClick={(e) => !post.link && e.preventDefault()}
                           >
                             <ExternalLink className="h-5 w-5" />
                             <span className="sr-only">Open post</span>
@@ -349,7 +467,7 @@ export default function ResultsClient() {
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-                {peopleResults.map((person) => (
+                {(peopleResults ?? []).map((person) => (
                   <article
                     key={person.username}
                     className="group rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-gray-200/50"
@@ -360,10 +478,10 @@ export default function ResultsClient() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="text-base font-semibold text-gray-900 transition-colors group-hover:text-amber-600">
-                          u/{person.username}
+                          u/{person.username || 'unknown'}
                         </h3>
                         <p className="text-sm font-medium text-amber-500">
-                          {person.estimatedKarma.toLocaleString()} karma
+                          {(person.estimatedKarma?.toLocaleString() ?? '0')} karma
                         </p>
                       </div>
                     </div>
@@ -374,8 +492,8 @@ export default function ResultsClient() {
                     </p>
 
                     <div className="mb-5 flex flex-wrap gap-2">
-                      {person.subreddits.length > 0 ? (
-                        person.subreddits.map((subreddit) => (
+                      {(person.subreddits?.length ?? 0) > 0 ? (
+                        (person.subreddits ?? []).map((subreddit) => (
                           <span
                             key={subreddit}
                             className="cursor-default rounded-full border border-gray-100 bg-gray-50 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-amber-100 hover:bg-amber-50 hover:text-amber-600"
@@ -390,13 +508,22 @@ export default function ResultsClient() {
                       )}
                     </div>
 
+                    {person.aiSummary && person.aiSummary.trim() !== '' && 
+                     person.aiSummary !== 'No summary available' && (
+                      <div className="mt-2 p-2 bg-muted/50 rounded-md">
+                        <span className="text-xs font-semibold text-primary">AI Summary: </span>
+                        <span className="text-xs text-muted-foreground">{person.aiSummary}</span>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between border-t border-gray-100 pt-4 text-xs">
                       <span className="text-gray-400">Activity count: {person.activityCount}</span>
                       <a
-                        href={person.profileUrl}
+                        href={person.profileUrl || '#'}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-amber-50 hover:text-amber-500"
+                        onClick={(e) => !person.profileUrl && e.preventDefault()}
                       >
                         <ExternalLink className="h-4 w-4" />
                         <span className="sr-only">Open profile</span>
@@ -409,14 +536,14 @@ export default function ResultsClient() {
           </>
         )}
 
-        {!loading && !error && results.length === 0 && (
+        {!loading && !error && (results?.length ?? 0) === 0 && (
           <div className="py-20 text-center">
-            <div className="text-gray-600">
-              <Search className="mx-auto mb-6 h-16 w-16 text-gray-300" />
-              <h2 className="mb-3 text-2xl font-semibold text-gray-900">
+            <div className="text-gray-300">
+              <Search className="mx-auto mb-6 h-16 w-16 text-gray-500" />
+              <h2 className="mb-3 text-2xl font-semibold text-white">
                 No results found for &quot;{query}&quot;
               </h2>
-              <p className="mx-auto max-w-md text-lg text-gray-600">
+              <p className="mx-auto max-w-md text-lg text-gray-300">
                 Try different keywords, switch mode, or check spelling.
               </p>
             </div>

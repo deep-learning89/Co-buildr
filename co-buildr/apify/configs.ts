@@ -1,5 +1,5 @@
 export const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN || '';
-export const TRUDAX_REDDIT_SCRAPER_ACTOR_ID = 'trudax/reddit-scraper' as const;
+export const TRUDAX_REDDIT_SCRAPER_ACTOR_ID = 'reddit-public-json' as const;
 
 export type TrudaxType = 'community' | 'post' | 'user';
 export type TrudaxSort = 'relevance' | 'hot' | 'top' | 'new' | 'comments';
@@ -56,7 +56,6 @@ export function buildTrudaxRedditScraperConfig(
 }
 
 export function assertApifyConfig(): void {
-  if (!APIFY_API_TOKEN) {
-    throw new Error('APIFY_API_TOKEN is missing. Add it to your environment variables.');
-  }
+  // Kept for backward compatibility with existing route flow.
+  // Reddit public JSON does not require APIFY_API_TOKEN.
 }

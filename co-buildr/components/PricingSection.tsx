@@ -161,7 +161,7 @@ const plans: Plan[] = [
     features: [
       { text: '50 searches/month', included: true },
       { text: 'Reddit posts only', included: true },
-      { text: 'Basic AI analysis (keyword match, basic summary)', included: true },
+      { text: 'Basic AI analysis (intent classification, AI summary)', included: true },
       { text: 'Filters: keyword, subreddit, date range', included: true },
       { text: 'Export: CSV and JSON', included: false },
       { text: 'User profiling', included: false },
@@ -170,7 +170,7 @@ const plans: Plan[] = [
   },
   {
     name: 'PLUS',
-    monthlyPrice: 15,
+    monthlyPrice: 10,
     highlighted: true,
     features: [
       { text: '200 searches/month', included: true },
@@ -184,7 +184,7 @@ const plans: Plan[] = [
   },
   {
     name: 'PRO',
-    monthlyPrice: 35,
+    monthlyPrice: 25,
     features: [
       { text: '400 searches/month', included: true },
       { text: '200 results per search', included: true },
