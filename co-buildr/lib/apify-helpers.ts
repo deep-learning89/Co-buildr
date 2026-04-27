@@ -14,16 +14,20 @@ export async function generateSmartQueries(userQuery: string): Promise<string[]>
 
     const response = await groqClient.chat.completions.create({
       model: 'llama3-8b-8192',
-      max_tokens: 100,
+      max_tokens: 150,
       messages: [
         {
           role: 'system',
-          content: 'You are a Reddit search expert. Return ONLY a JSON array of 5 short keyword search queries (2-4 words each). No explanation. No markdown.'
+          content: 'You are a Reddit search expert. Return ONLY a JSON array of 5 short keyword search queries (2-4 words each). Make them specific and popular Reddit-style. For business/startup topics always include variations with: "how to", "best", "tips", community-style phrases. No explanation. No markdown. No extra text.'
         },
         {
           role: 'user',
-          content: `Convert this user intent into 5 Reddit search keyword queries:
+          content: `Convert this into 5 Reddit search queries a real user would type:
 "${userQuery}"
+
+Examples for "saas": ["build saas startup", "saas founder tips", "saas product launch", "indie saas maker", "saas side project"]
+Examples for "cofounder": ["find cofounder startup", "looking for cofounder", "cofounder equity split", "solo founder vs cofounder", "how to find cofounder"]
+Examples for "nextjs": ["nextjs project ideas", "nextjs best practices", "learning nextjs tips", "nextjs vs remix", "nextjs side project"]
 
 Return format: ["query1", "query2", "query3", "query4", "query5"]`
         }
@@ -31,17 +35,21 @@ Return format: ["query1", "query2", "query3", "query4", "query5"]`
     });
 
     const text = response.choices[0]?.message?.content?.trim() || '';
-    const parsed = JSON.parse(text);
+    // Strip any markdown fences just in case
+    const cleaned = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(cleaned);
     if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     throw new Error('Invalid response');
   } catch {
-    const words = userQuery.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').filter(w => w.length > 3);
+    // Fallback: build meaningful queries from the raw input
+    const q = userQuery.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+    const words = q.split(' ').filter(w => w.length > 2);
     return [
-      userQuery,
-      words.slice(0, 3).join(' '),
-      words.slice(0, 2).join(' '),
-      words.slice(1, 4).join(' '),
-      words[0] + ' tips'
+      q,
+      `${q} tips`,
+      `${q} startup`,
+      `how to ${q}`,
+      words.length > 1 ? words.slice(0, 2).join(' ') : `${q} reddit`
     ].filter(Boolean).slice(0, 5);
   }
 }
@@ -62,7 +70,7 @@ export async function runApifyScraper(searchQuery: string) {
         mode: 'search',
         search: {
           queries: smartQueries,
-          maxPostsPerQuery: 20,
+          maxPostsPerQuery: 15,
           sort: 'relevance'
         },
         proxyConfiguration: { useApifyProxy: true }
@@ -71,23 +79,22 @@ export async function runApifyScraper(searchQuery: string) {
   );
 
   const run = await response.json();
-  
-  // Guard: if run?.data?.id is missing, throw with JSON.stringify(run) in message
+
   if (!run?.data?.id) {
+    console.error('❌ Apify run failed to start. Full response:', JSON.stringify(run));
     throw new Error(`Invalid run response: ${JSON.stringify(run)}`);
   }
-  
+
   const runId = run.data.id;
   const datasetId = run.data.defaultDatasetId;
-
   console.log('🔍 Apify run started:', runId);
 
-  // Poll until finished (max 50s to stay under Vercel 60s limit)
+  // Poll until finished (max 45s to stay under Vercel 60s limit)
   let status = 'RUNNING';
-let attempts = 0;
-while ((status === 'RUNNING' || status === 'READY') && attempts < 9) {
-  await new Promise(r => setTimeout(r, 5000));
-  attempts++;
+  let attempts = 0;
+  while ((status === 'RUNNING' || status === 'READY') && attempts < 9) {
+    await new Promise(r => setTimeout(r, 5000));
+    attempts++;
 
     const statusRes = await fetch(
       `https://api.apify.com/v2/runs/${runId}?token=${APIFY_API_TOKEN}`
@@ -110,7 +117,7 @@ while ((status === 'RUNNING' || status === 'READY') && attempts < 9) {
     return true;
   });
 
-  console.log(`✅ Total: ${items.length}, Unique: ${uniqueItems.length}`);
+  console.log(`✅ Total: ${Array.isArray(items) ? items.length : 0}, Unique: ${uniqueItems.length}`);
   return { runId, items: uniqueItems };
 }
 

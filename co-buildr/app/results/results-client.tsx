@@ -144,7 +144,7 @@ function computeAiMatchStars(query: string, post: RedditPost): number {
 export default function ResultsClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const query = searchParams.get('q') || '';
+  const initialQuery = searchParams.get('q') || '';
   const modeParam = searchParams.get('mode');
   const mode: SearchMode = modeParam === 'people' ? 'people' : 'posts';
 
@@ -153,6 +153,7 @@ export default function ResultsClient() {
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<'cache' | 'fresh' | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
 
   const peopleResults = useMemo(() => {
     // If mode is 'people', results are already PersonResult objects from API
@@ -163,9 +164,60 @@ export default function ResultsClient() {
     return buildPeopleResults(results as RedditPost[]);
   }, [results, mode]);
 
+  const handleSearch = async (newQuery?: string) => {
+    const queryToSearch = newQuery || searchQuery;
+    if (!queryToSearch.trim()) {
+      return;
+    }
+
+    // Update URL with new search parameters
+    router.push(`/results?q=${encodeURIComponent(queryToSearch.trim())}&mode=${mode}`);
+
+    setLoading(true);
+    setError(null);
+    setSource(null);
+
+    try {
+      // Get session token for authentication
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
+      const response = await fetch('/api/scrape', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          query: queryToSearch.trim(),
+          mode,
+          maxPosts: mode === 'people' ? 60 : 30,
+          sort: 'hot',
+        }),
+      });
+
+      const data: ScrapeResponse = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Search failed');
+      }
+
+      setResults(data.results || []);
+      setSource(data.source || null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred while searching');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     const fetchResults = async () => {
-      if (!query) {
+      if (!searchQuery) {
         router.push('/');
         return;
       }
@@ -182,62 +234,23 @@ export default function ResultsClient() {
         }
 
         if (!session?.user) {
-          router.push(`/login?next=${encodeURIComponent(`/results?q=${query}&mode=${mode}`)}`);
+          router.push(`/login?next=${encodeURIComponent(`/results?q=${searchQuery}&mode=${mode}`)}`);
           return;
         }
       } catch {
-        router.push(`/login?next=${encodeURIComponent(`/results?q=${query}&mode=${mode}`)}`);
+        router.push(`/login?next=${encodeURIComponent(`/results?q=${searchQuery}&mode=${mode}`)}`);
         return;
       } finally {
         setAuthChecked(true);
       }
 
-      setLoading(true);
-      setError(null);
-      setSource(null);
-
-      try {
-        // Get session token for authentication
-        const supabase = getSupabaseClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-        };
-        
-        if (session?.access_token) {
-          headers['Authorization'] = `Bearer ${session.access_token}`;
-        }
-
-        const response = await fetch('/api/scrape', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            query: query.trim(),
-            mode,
-            maxPosts: mode === 'people' ? 60 : 30,
-            sort: 'hot',
-          }),
-        });
-
-        const data: ScrapeResponse = await response.json();
-
-        if (!response.ok || !data.success) {
-          throw new Error(data.error || 'Search failed');
-        }
-
-        setResults(data.results || []);
-        setSource(data.source || null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred while searching');
-      } finally {
-        setLoading(false);
-      }
+      await handleSearch(searchQuery);
     };
 
     fetchResults();
-  }, [query, mode, router]);
+  }, []); // Only run on mount
 
-  if (!query) return null;
+  if (!searchQuery) return null;
   if (!authChecked) {
     return (
       <div className="min-h-screen bg-black">
@@ -249,7 +262,7 @@ export default function ResultsClient() {
   }
 
   const switchMode = (target: SearchMode) => {
-    router.push(`/results?q=${encodeURIComponent(query)}&mode=${target}`);
+    router.push(`/results?q=${encodeURIComponent(searchQuery)}&mode=${target}`);
   };
 
   const resultsCount = mode === 'people' ? (peopleResults?.length ?? 0) : (results?.length ?? 0);
@@ -300,16 +313,28 @@ export default function ResultsClient() {
             <Search className="mr-3 h-5 w-5 text-gray-400" />
             <input
               type="text"
-              value={query}
-              readOnly
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleSearch();
+                }
+              }}
+              placeholder="Search Reddit..."
               className="flex-1 text-base text-gray-700 outline-none placeholder-gray-400"
+              disabled={loading}
             />
             <button
               type="button"
-              onClick={() => router.push('/search')}
-              className="ml-2 rounded-full bg-amber-500 px-6 py-2.5 font-medium text-white transition-all duration-200 hover:bg-amber-600 hover:shadow-md"
+              onClick={() => handleSearch()}
+              disabled={loading || !searchQuery.trim()}
+              className="ml-2 rounded-full bg-amber-500 px-6 py-2.5 font-medium text-white transition-all duration-200 hover:bg-amber-600 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Search
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Search'
+              )}
             </button>
           </div>
         </div>
@@ -343,7 +368,7 @@ export default function ResultsClient() {
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-300">
             <span>
-              {resultsCount} results for &quot;{query}&quot;
+              {resultsCount} results for &quot;{searchQuery}&quot;
             </span>
             {source && (
               <span className="rounded-full bg-white/10 px-2 py-1 text-xs font-medium text-gray-100">
@@ -405,7 +430,7 @@ export default function ResultsClient() {
                             <span>AI Match</span>
                             <div className="ml-1 inline-flex items-center gap-0.5">
                               {Array.from({ length: 5 }).map((_, starIndex) => {
-                                const stars = computeAiMatchStars(query, post);
+                                const stars = computeAiMatchStars(searchQuery, post);
                                 return (
                                   <Star
                                     key={starIndex}
@@ -541,7 +566,7 @@ export default function ResultsClient() {
             <div className="text-gray-300">
               <Search className="mx-auto mb-6 h-16 w-16 text-gray-500" />
               <h2 className="mb-3 text-2xl font-semibold text-white">
-                No results found for &quot;{query}&quot;
+                No results found for &quot;{searchQuery}&quot;
               </h2>
               <p className="mx-auto max-w-md text-lg text-gray-300">
                 Try different keywords, switch mode, or check spelling.
