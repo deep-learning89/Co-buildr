@@ -190,8 +190,16 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Update status to running
-    await updateScrapeStatus(supabase, cacheKey, 'running');
+    // Update status to running with upsert to ensure row exists
+    await supabase.from('reddit_scrapes').upsert({
+      search_query: cacheKey,
+      original_query: body.query,
+      actor_id: 'spry_wholemeal/reddit-scraper',
+      run_id: 'pending',
+      status: 'running',
+      user_id: null,
+      results: []
+    }, { onConflict: 'search_query' });
 
     // Run scraper using new spry_wholemeal/reddit-scraper
     console.log('🔍 Starting Apify scraper for query:', body.query);
@@ -322,8 +330,16 @@ export async function POST(request: NextRequest) {
     // Save results to Supabase with user ownership
     await saveResultsToSupabase(supabase, cacheKey, body.query, runId, items as unknown as SpryWholemealPostOutput[], user.id);
     
-    // Update status to completed
-    await updateScrapeStatus(supabase, cacheKey, 'completed');
+    // Update status to completed with upsert
+    await supabase.from('reddit_scrapes').upsert({
+      search_query: cacheKey,
+      original_query: body.query,
+      actor_id: 'spry_wholemeal/reddit-scraper',
+      run_id: runId,
+      status: 'completed',
+      user_id: null,
+      results: enrichedData
+    }, { onConflict: 'search_query' });
 
     return NextResponse.json({
       success: true,
@@ -346,7 +362,16 @@ export async function POST(request: NextRequest) {
     if (scrapeId) {
       try {
         if (supabase) {
-          await updateScrapeStatus(supabase, cacheKey, 'failed');
+          await supabase.from('reddit_scrapes').upsert({
+            search_query: cacheKey,
+            original_query: body?.query || '',
+            actor_id: 'spry_wholemeal/reddit-scraper',
+            run_id: scrapeId,
+            status: 'failed',
+            user_id: null,
+            error_message: err instanceof Error ? err.message : 'Unknown error',
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'search_query' });
         }
       } catch (statusError) {
         console.error('Failed to persist failed status:', statusError);

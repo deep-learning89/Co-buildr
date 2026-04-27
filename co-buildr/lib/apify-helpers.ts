@@ -71,6 +71,12 @@ export async function runApifyScraper(searchQuery: string) {
   );
 
   const run = await response.json();
+  
+  // Guard: if run?.data?.id is missing, throw with JSON.stringify(run) in message
+  if (!run?.data?.id) {
+    throw new Error(`Invalid run response: ${JSON.stringify(run)}`);
+  }
+  
   const runId = run.data.id;
   const datasetId = run.data.defaultDatasetId;
 
@@ -85,7 +91,7 @@ export async function runApifyScraper(searchQuery: string) {
     if (attempts > 9) break; // 9 * 5s = 45s max wait
 
     const statusRes = await fetch(
-      `https://api.apify.com/v2/acts/${REDDIT_SCRAPER_ACTOR_ID}/runs/${runId}?token=${APIFY_API_TOKEN}`
+      `https://api.apify.com/v2/runs/${runId}?token=${APIFY_API_TOKEN}`
     );
     const statusData = await statusRes.json();
     status = statusData.data?.status || 'FAILED';
