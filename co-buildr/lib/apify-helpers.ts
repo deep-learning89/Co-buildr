@@ -73,7 +73,7 @@ export async function runApifyScraper(searchQuery: string) {
           maxPostsPerQuery: 15,
           sort: 'relevance'
         },
-        proxyConfiguration: { useApifyProxy: true }
+        proxyConfiguration: { useApifyProxy: false }
       })
     }
   );
