@@ -196,6 +196,18 @@ export async function POST(request: NextRequest) {
     // Run scraper using new spry_wholemeal/reddit-scraper
     console.log('🔍 Starting Apify scraper for query:', body.query);
     const { runId, items } = await runApifyScraper(body.query);
+    if (!items || items.length === 0) {
+  return NextResponse.json({
+    success: true,
+    status: 'completed',
+    results: [],
+    count: 0,
+    source: 'fresh',
+    mode,
+    error: null,
+    message: 'No Reddit posts found. Try different keywords.'
+  });
+}
     scrapeId = runId;
     console.log('✅ Apify scraper completed, runId:', runId, 'items:', items.length);
 

@@ -5,6 +5,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://co-buildr-umber.vercel.app/'),
   title: 'CoBuildr - Find Your People with AI',
   description:
     'AI finds your exact co-founder, collaborator, or builder match across every platform. One prompt. No noise. Just the right people.',
