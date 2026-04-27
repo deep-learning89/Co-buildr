@@ -1,6 +1,5 @@
 export const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN;
-export const REDDIT_SCRAPER_ACTOR_ID = 'spry_wholemeal/reddit-scraper';
-
+export const REDDIT_SCRAPER_ACTOR_ID = 'spry_wholemeal~reddit-scraper';
 export function buildRedditScraperConfig(params: {
   mode: 'scrape' | 'search' | 'discover' | 'domain';
   scrape?: { subreddits: string[]; sort?: string; timeframe?: string; maxPostsPerSubreddit?: number; comments?: object };
