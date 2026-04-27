@@ -62,7 +62,7 @@ export async function runApifyScraper(searchQuery: string) {
         mode: 'search',
         search: {
           queries: smartQueries,
-          maxPostsPerQuery: 5,
+          maxPostsPerQuery: 20,
           sort: 'relevance'
         },
         proxyConfiguration: { useApifyProxy: true }
@@ -84,11 +84,10 @@ export async function runApifyScraper(searchQuery: string) {
 
   // Poll until finished (max 50s to stay under Vercel 60s limit)
   let status = 'RUNNING';
-  let attempts = 0;
-  while (status === 'RUNNING' || status === 'READY') {
-    await new Promise(r => setTimeout(r, 5000));
-    attempts++;
-    if (attempts > 9) break; // 9 * 5s = 45s max wait
+let attempts = 0;
+while ((status === 'RUNNING' || status === 'READY') && attempts < 9) {
+  await new Promise(r => setTimeout(r, 5000));
+  attempts++;
 
     const statusRes = await fetch(
       `https://api.apify.com/v2/runs/${runId}?token=${APIFY_API_TOKEN}`
