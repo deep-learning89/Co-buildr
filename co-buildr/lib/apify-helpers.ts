@@ -1,148 +1,4 @@
-// import { ApifyClient } from 'apify-client';
-// import { APIFY_API_TOKEN, REDDIT_SCRAPER_ACTOR_ID, buildRedditScraperConfig } from './apify-config';
-// import type { InternalRedditResult, SpryWholemealPostOutput } from '@/lib/reddit';
-// import type { SupabaseClient } from '@supabase/supabase-js';
-
-// if (!APIFY_API_TOKEN) {
-//   throw new Error('APIFY_API_TOKEN is not configured');
-// }
-
-// const client = new ApifyClient({ token: APIFY_API_TOKEN });
-
-// export async function runApifyScraper(searchQuery: string) {
-//   console.log('🔍 Apify token available:', !!APIFY_API_TOKEN);
-//   console.log('🔍 Apify token length:', APIFY_API_TOKEN?.length || 0);
-  
-//   const input = buildRedditScraperConfig({
-//     mode: 'search',
-//     search: {
-//       queries: [searchQuery],
-//       maxPostsPerQuery: 10,
-//       sort: 'relevance'
-//     }
-//   });
-  
-//   console.log('🔍 Calling Apify actor:', REDDIT_SCRAPER_ACTOR_ID);
-//   const run = await client.actor(REDDIT_SCRAPER_ACTOR_ID).start(input);
-//   const { items } = await client.dataset(run.defaultDatasetId).listItems();
-//   return { runId: run.id, items };
-// }
-
-// export async function pollApifyRun(runId: string) {
-//   const run = await client.run(runId).get();
-//   if (!run) {
-//     return {
-//       status: 'NOT_FOUND',
-//       isFinished: true,
-//       items: null
-//     };
-//   }
-  
-//   return {
-//     status: run.status,
-//     isFinished: run.status === 'SUCCEEDED' || run.status === 'FAILED',
-//     items: run.status === 'SUCCEEDED' ? await client.run(runId).dataset().listItems() : null
-//   };
-// }
-
-// export function mapApifyItemToInternalResult(item: SpryWholemealPostOutput): InternalRedditResult {
-//   // Extract subreddit from permalink or use fallback
-//   const subreddit = item.permalink?.split('/r/')?.[1]?.split('/')?.[0] || '';
-  
-//   // Extract ID from permalink or generate fallback ID
-//   const extractedId = item.permalink?.split('/comments/')?.[1]?.split('/')?.[0];
-//   const id = extractedId || `${item.author || 'unknown'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  
-//   return {
-//     id,
-//     title: item.title || '',
-//     body: item.text || '',
-//     text: item.text || '',
-//     subreddit,
-//     upvotes: item.score || 0,
-//     url: `https://reddit.com${item.permalink}`,
-//     link: `https://reddit.com${item.permalink}`,
-//     author: item.author || '',
-//     created_at: item.created_utc_iso || new Date().toISOString(),
-//     intent: null
-//   };
-// }
-
-// export function normalizeQuery(query: string): string {
-//   return query.trim().toLowerCase();
-// }
-
-// export async function getCachedResults(
-//   searchQuery: string,
-//   supabase: SupabaseClient,
-//   userId?: string
-// ): Promise<InternalRedditResult[] | null> {
-//   let query = supabase
-//     .from('reddit_scrapes')
-//     .select('results')
-//     .eq('search_query', normalizeQuery(searchQuery))
-//     .eq('status', 'completed');
-    
-//   // SECURITY: Only return results for the specific user if userId provided
-//   if (userId) {
-//     query = query.eq('user_id', userId);
-//   }
-    
-//   const { data, error } = await query
-//     .order('created_at', { ascending: false })
-//     .limit(1)
-//     .maybeSingle();
-
-//   if (error || !data || !Array.isArray(data.results)) {
-//     return null;
-//   }
-
-//   return data.results as InternalRedditResult[];
-// }
-
-// export async function saveResultsToSupabase(
-//   supabase: SupabaseClient,
-//   searchQuery: string,
-//   originalQuery: string,
-//   runId: string,
-//   results: SpryWholemealPostOutput[],
-//   userId: string
-// ) {
-//   const internalResults = results.map(mapApifyItemToInternalResult);
-  
-//   const { error } = await supabase.from('reddit_scrapes').insert({
-//     search_query: normalizeQuery(searchQuery),
-//     original_query: originalQuery,
-//     actor_id: REDDIT_SCRAPER_ACTOR_ID,
-//     run_id: runId,
-//     status: 'completed',
-//     results: internalResults,
-//     user_id: userId, // SECURITY: Track which user owns this data
-//     completed_at: new Date().toISOString()
-//   });
-
-//   if (error) {
-//     throw new Error(`Failed to save results: ${error.message}`);
-//   }
-// }
-
-// export async function updateScrapeStatus(
-//   supabase: SupabaseClient,
-//   searchQuery: string,
-//   status: 'pending' | 'running' | 'completed' | 'failed',
-//   error_message?: string
-// ) {
-//   const { error } = await supabase
-//     .from('reddit_scrapes')
-//     .update({ status, error_message, updated_at: new Date().toISOString() })
-//     .eq('search_query', normalizeQuery(searchQuery));
-
-//   if (error) {
-//     throw new Error(`Failed to update scrape status: ${error.message}`);
-//   }
-// }
-import { ApifyClient } from 'apify-client';
-import { APIFY_API_TOKEN, REDDIT_SCRAPER_ACTOR_ID, buildRedditScraperConfig } from './apify-config';
+import { APIFY_API_TOKEN, REDDIT_SCRAPER_ACTOR_ID } from './apify-config';
 import type { InternalRedditResult, SpryWholemealPostOutput } from '@/lib/reddit';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { groqClient } from '@/lib/groq-client';
@@ -150,8 +6,6 @@ import { groqClient } from '@/lib/groq-client';
 if (!APIFY_API_TOKEN) {
   throw new Error('APIFY_API_TOKEN is not configured');
 }
-
-const client = new ApifyClient({ token: APIFY_API_TOKEN });
 
 // === SMART QUERY GENERATOR ===
 export async function generateSmartQueries(userQuery: string): Promise<string[]> {
@@ -181,7 +35,6 @@ Return format: ["query1", "query2", "query3", "query4", "query5"]`
     if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     throw new Error('Invalid response');
   } catch {
-    // Fallback: basic keyword extraction
     const words = userQuery.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').filter(w => w.length > 3);
     return [
       userQuery,
@@ -193,50 +46,67 @@ Return format: ["query1", "query2", "query3", "query4", "query5"]`
   }
 }
 
-// === MULTI-QUERY SCRAPER ===
+// === MULTI-QUERY SCRAPER (plain fetch, no apify-client) ===
 export async function runApifyScraper(searchQuery: string) {
   console.log('🔍 Apify token available:', !!APIFY_API_TOKEN);
 
-  // Generate smart queries from user intent
   const smartQueries = await generateSmartQueries(searchQuery);
-  console.log('🔍 Smart queries generated:', smartQueries);
+  console.log('🔍 Smart queries:', smartQueries);
 
-  const input = buildRedditScraperConfig({
-    mode: 'search',
-    search: {
-      queries: smartQueries,
-      maxPostsPerQuery: 5,
-      sort: 'relevance'
+  const response = await fetch(
+    `https://api.apify.com/v2/acts/${REDDIT_SCRAPER_ACTOR_ID}/runs?token=${APIFY_API_TOKEN}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'search',
+        search: {
+          queries: smartQueries,
+          maxPostsPerQuery: 5,
+          sort: 'relevance'
+        },
+        proxyConfiguration: { useApifyProxy: true }
+      })
     }
-  });
+  );
 
-  console.log('🔍 Calling Apify actor:', REDDIT_SCRAPER_ACTOR_ID);
-  const run = await client.actor(REDDIT_SCRAPER_ACTOR_ID).call(input);
-  const { items } = await client.dataset(run.defaultDatasetId).listItems();
+  const run = await response.json();
+  const runId = run.data.id;
+  const datasetId = run.data.defaultDatasetId;
+
+  console.log('🔍 Apify run started:', runId);
+
+  // Poll until finished (max 50s to stay under Vercel 60s limit)
+  let status = 'RUNNING';
+  let attempts = 0;
+  while (status === 'RUNNING' || status === 'READY') {
+    await new Promise(r => setTimeout(r, 5000));
+    attempts++;
+    if (attempts > 9) break; // 9 * 5s = 45s max wait
+
+    const statusRes = await fetch(
+      `https://api.apify.com/v2/acts/${REDDIT_SCRAPER_ACTOR_ID}/runs/${runId}?token=${APIFY_API_TOKEN}`
+    );
+    const statusData = await statusRes.json();
+    status = statusData.data?.status || 'FAILED';
+    console.log(`🔍 Apify status [${attempts}]:`, status);
+  }
+
+  const datasetRes = await fetch(
+    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_API_TOKEN}`
+  );
+  const items = await datasetRes.json();
 
   // Deduplicate by permalink
   const seen = new Set<string>();
-  const uniqueItems = (items as unknown as SpryWholemealPostOutput[]).filter(item => {
+  const uniqueItems = (Array.isArray(items) ? items : []).filter((item: SpryWholemealPostOutput) => {
     if (!item.permalink || seen.has(item.permalink)) return false;
     seen.add(item.permalink);
     return true;
   });
 
-  console.log(`✅ Total items: ${items.length}, Unique: ${uniqueItems.length}`);
-  return { runId: run.id, items: uniqueItems };
-}
-
-export async function pollApifyRun(runId: string) {
-  const run = await client.run(runId).get();
-  if (!run) {
-    return { status: 'NOT_FOUND', isFinished: true, items: null };
-  }
-
-  return {
-    status: run.status,
-    isFinished: run.status === 'SUCCEEDED' || run.status === 'FAILED',
-    items: run.status === 'SUCCEEDED' ? await client.run(runId).dataset().listItems() : null
-  };
+  console.log(`✅ Total: ${items.length}, Unique: ${uniqueItems.length}`);
+  return { runId, items: uniqueItems };
 }
 
 export function mapApifyItemToInternalResult(item: SpryWholemealPostOutput): InternalRedditResult {
